@@ -19,9 +19,11 @@ using DelimitedFiles
 using Random
 using Distributions
 using NLPModelsIpopt
+using StatsBase
 
-cd("...")
-Prob = readdlm(string(pwd(),"/../Parameter/problems.txt"))
+cd("/.../StoSQP")
+
+
 
 module Parameter
     # Parameters of StoSQP with augmented Lagrangian
@@ -31,12 +33,19 @@ module Parameter
         MaxIter::Int                       # Maximum Iteration
         # fixed parameters
         Rep::Int                           # Number of Independent runs
-        tau::Int                           # Number of iterations for inexact solver
+        tau::Array{Int64}                  # Number of iterations for inexact solver
         c_1::Float64                       # beta_t = c_1/t^{c_2}
         c_2::Array{Float64}
         c_3::Float64                       # chi_t = beta_t^{c_3}
-        # test parameters
-        Sigma::Array{Float64}              # variance of gradient
+        SigToe::Array{Float64}             # Toeplitz covariance
+        SigEqui::Array{Float64}            # Equi Corr covariance
+        # Data parameters
+        D::Array{Int64}                    # problem dimension
+        M::Array{Float64}                  # number of constraints
+    end
+    struct ConstM
+        SampleSize::Int
+        Rep::Int                           # Number of Independent runs
     end
 end
 
@@ -46,14 +55,11 @@ include("../Parameter/Param.jl")
 
 
 include("StoSQPMain.jl")
-
-
 #######################################
 #########  run main file    ###########
 #######################################
 function main()
-    ## run StoSQP framework
-    StoSQPMain(StoSQPSet, Prob)
+    StoSQPMain(StoSQPSet, ConstMSet)
 end
 
 main()

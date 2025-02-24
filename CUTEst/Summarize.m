@@ -1,17 +1,27 @@
 %% This fucntion draws plot for simulation
 clear all; close all
+delete('./Figure/*')
+rmdir('./Figure/*','s')
+
 DBeta = [0.501];
 Sigma = [1e-4, 1e-2, 1e-1, 1];
 Rep = 200;
-IdPProb = [1,2,3,4,5];
+%% Go over Problem Folder
+d = dir('./Solution');
+isub = [d(:).isdir]; 
+nameFolds = {d(isub).name}; % Names of all directories
+nameFolds = nameFolds(~ismember(nameFolds, {'.', '..'}))';
+numFolds = sort(cellfun(@(fold) str2double(fold(5:end)),nameFolds));
+Problems = readlines('./Parameter/problems.txt');
 
-%% Summarize the results
-for ii = 1:length(IdPProb)
-    Idprob = IdPProb(ii);
+
+%% Plot the results
+for ii = 1:length(numFolds)
+    Idprob = numFolds(ii);
     for IdDBeta = 1:length(DBeta)
         Id_comp = ones(length(Sigma),1);
         for IdSigma = 1:length(Sigma)
-            load_file = ['./Solution/StoSQP',num2str(Idprob),'/D',num2str(IdDBeta),'S',num2str(IdSigma),'/rep1.mat'];
+            load_file = ['./Solution/Prob',num2str(Idprob),'/D',num2str(IdDBeta),'S',num2str(IdSigma),'/rep2.mat'];
             if isfile(load_file)
                 load(load_file);
                 Res{IdSigma} = Result;
@@ -22,19 +32,17 @@ for ii = 1:length(IdPProb)
         if sum(Id_comp) < length(Sigma)
             continue
         end
-        % Make Output Directory
-%        mkdir(['./Figure/Prop' num2str(Idprob)]) 
-        Sigma_Map = jet(length(Sigma)+1);
-        Sigma_Map = Sigma_Map(2:end,:);        
-
-        % Show Convergence of Iterate
+        %% Make Output Directory
+        mkdir(['./Figure/Prop' num2str(Idprob) '_']+Problems(Idprob))
+        %% Show Convergence of Iterate
         L_Tail = 1; R_Tail = 1e5+1; t = L_Tail:R_Tail;
+        Sigma_Map = jet(length(Sigma)+1);
         Sigma_Legend = {'$\sigma^2=10^{-4}$','$\sigma^2=10^{-2}$', ...
             '$\sigma^2=10^{-1}$','$\sigma^2=1$','Theory'};
         fig = figure(IdDBeta);
         for IdSigma = 1:length(Sigma)
             plot(L_Tail:R_Tail,[Res{IdSigma}.ErrXLam{L_Tail:R_Tail}], ...
-                'Color',Sigma_Map(IdSigma,:),'LineWidth',1.5)
+                'Color',Sigma_Map(IdSigma+1,:),'LineWidth',1.5)
             hold on
         end
         y = sqrt(log(t)./t.^DBeta(IdDBeta));
@@ -45,12 +53,16 @@ for ii = 1:length(IdPProb)
         xlabel('Iteration $t$','Interpreter','latex','Fontsize',35)
         ylabel('$\|(x_t-x^\star,\lambda_t-\lambda^\star)\|$','Interpreter','latex','Fontsize',35)
         xlim([L_Tail R_Tail])
+%        ylim([1e-2 1e2])
+%        legend((Sigma_Legend),'Orientation','horizontal','Location','northoutside','Interpreter','latex','FontSize',29)
+        filename = ['./Figure/Prop' num2str(Idprob) '_']+Problems(Idprob)+['/ErrXLamS' num2str(IdDBeta) '.png'];
+        print('-dpng', filename)
 
-        % Show Convergence of KKT Matrix
+        %% Show Convergence of KKT Matrix
         fig = figure(10 + IdDBeta);
         for IdSigma = 1:length(Sigma)
             plot(L_Tail:R_Tail,[Res{IdSigma}.ErrK{L_Tail:R_Tail}], ...
-                'Color',Sigma_Map(IdSigma,:),'LineWidth',1.5)
+                'Color',Sigma_Map(IdSigma+1,:),'LineWidth',1.5)
             hold on
         end
         y = sqrt(log(t)./t.^DBeta(IdDBeta));
@@ -61,12 +73,16 @@ for ii = 1:length(IdPProb)
         xlabel('Iteration $t$','Interpreter','latex','Fontsize',35) 
         ylabel('$\|K_t-K^\star\|$','Interpreter','latex','Fontsize',35)
         xlim([L_Tail R_Tail])
-        
-        % Show Convergence of KKT Residual
+%        ylim([1e-2 1e2])
+%        legend((Sigma_Legend),'Orientation','horizontal','Location','northoutside','Interpreter','latex','FontSize',7)
+        filename = ['./Figure/Prop' num2str(Idprob) '_']+Problems(Idprob)+['/ErrKS' num2str(IdDBeta) '.png'];
+        print('-dpng', filename)
+
+        %% Show Convergence of KKT Residual
         fig = figure(100 + IdDBeta);
         for IdSigma = 1:length(Sigma)
             plot(L_Tail:R_Tail,[Res{IdSigma}.KKT{L_Tail:R_Tail}], ...
-                'Color',Sigma_Map(IdSigma,:),'LineWidth',1.5)
+                'Color',Sigma_Map(IdSigma+1,:),'LineWidth',1.5)
             hold on
         end
         y = sqrt(log(t)./t.^DBeta(IdDBeta));
@@ -77,75 +93,68 @@ for ii = 1:length(IdPProb)
         xlabel('Iteration $t$','Interpreter','latex','Fontsize',35)
         ylabel('$\|\nabla L_t\|$','Interpreter','latex','Fontsize',35)
         xlim([L_Tail R_Tail])
-
-        % Show Confidence Interval of X1+Lam1
-        t = 1:R_Tail; L_Tail = R_Tail-100;
-        for IdSigma = 1:length(Sigma)
-            fig = figure(200+IdSigma);
-            Beta_t = 1./t.^(DBeta(IdDBeta));
-            XLam1 = [Res{IdSigma}.X1{:}] + [Res{IdSigma}.Lam1{:}];
-            Rad = [Res{IdSigma}.Radius{:}];
-            XLam1_true = Res{IdSigma}.X_true(1)+ Res{IdSigma}.Lam_true(1);
-            plot(L_Tail:R_Tail,XLam1(L_Tail:R_Tail)+Rad(L_Tail:R_Tail), 'Color','green', 'LineWidth', 1.5);
-            hold on;
-            plot(L_Tail:R_Tail,XLam1(L_Tail:R_Tail)-Rad(L_Tail:R_Tail),'Color','blue', 'LineWidth', 1.5);
-            hold on
-            yline(XLam1_true,'LineWidth',2,'Color','red')
-            hold off
-            xlim([L_Tail,R_Tail])
-            ylabel('$95\%$ CI of $x_1^\star+\lambda_1^\star$','Interpreter','latex','FontSize',35)
-            xlabel('Iteration $t$','Interpreter','latex','FontSize',35)
-        end
-
-        % save cover rate to the file
-        file_path_1 = './Figure/CoverRate.txt';
-        file_path_2 = './Figure/Radius.txt';
-        rate_cover = ones(length(Sigma),1);
-        radius = ones(length(Sigma),2);
-        for IdSigma = 1:length(Sigma)
-            folder_path = ['./Solution/StoSQP',num2str(Idprob),'/D',num2str(IdDBeta),'S',num2str(IdSigma)];
-            directory = dir([folder_path,'/*.mat']);
-            NumCov = numel(directory);
-            rrate = zeros(NumCov,1);
-            rradius = zeros(NumCov,1);
-            iii = 1; 
-            for dat = directory'
-                load([folder_path,'/',dat.name]);
-                rrate(iii) = double(Result.CoverRate);
-                rradius(iii) = Result.Radius{end};
-                iii = iii + 1;
-            end
-            rate_cover(IdSigma,1) = mean(rrate);
-            radius(IdSigma,1) = mean(rradius);
-            radius(IdSigma,2) = std(rradius);
-        end
-
-        if isfile(file_path_1)
-            fileID = fopen(file_path_1,'a');
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                rate_cover(1,1),rate_cover(2,1),rate_cover(3,1),rate_cover(4,1));
-        else
-            fileID = fopen(file_path_1,'w');
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                rate_cover(1,1),rate_cover(2,1),rate_cover(3,1),rate_cover(4,1));
-        end
-
-        if isfile(file_path_2)
-            fileID = fopen(file_path_2,'a');
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                radius(1,1),radius(2,1),radius(3,1),radius(4,1));
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                radius(1,2),radius(2,2),radius(3,2),radius(4,2));
-        else
-            fileID = fopen(file_path_2,'w');
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                radius(1,1),radius(2,1),radius(3,1),radius(4,1));
-            fprintf(fileID,'%1.0f %8.4f %11.4f %14.4f %17.4f\r\n',Idprob, ...
-                radius(1,2),radius(2,2),radius(3,2),radius(4,2));
-        end
-  
+%        ylim([1e-2 1e2])
+%        legend((Sigma_Legend),'Orientation','horizontal','Location','northoutside','Interpreter','latex','FontSize',7)
+        filename = ['./Figure/Prop' num2str(Idprob) '_']+Problems(Idprob)+['/ErrKKTS' num2str(IdDBeta) '.png'];
+        print('-dpng', filename)
     end
 end
+
+%% Save results to txt file
+clear all; close all
+delete('./Figure/SummaryS*')
+
+DBeta = [0.501];
+Sigma = [1e-4, 1e-2, 1e-1, 1];
+Rep = 200;
+%% Go over Problem Folder
+d = dir('./Solution');
+isub = [d(:).isdir]; 
+nameFolds = {d(isub).name}; % Names of all directories
+nameFolds = nameFolds(~ismember(nameFolds, {'.', '..'}))';
+numFolds = sort(cellfun(@(fold) str2double(fold(5:end)),nameFolds));
+Problems = readlines('./Parameter/problems.txt');
+
+for IdDBeta = 1:length(DBeta)
+    file_path = ['./Figure/SummaryS' num2str(IdDBeta) '.txt'];
+    fileID = fopen(file_path,'w');
+    fprintf(fileID,'%17s %23s %31s %27s %20s\r\n','Sigma','MSE (std)', ...
+        'Rate (std)','Length (std)','FLOPs');
+    %% Go over problems
+    for ii = 1:length(numFolds)
+        Idprob = numFolds(ii);
+        load(['./Solution/Prob',num2str(Idprob),'/SaveSolution.mat'])
+        if rank(full(G_star*G_star')) == size(G_star,1)
+            % Index for inference
+            IdIndex = find(vecnorm(G_star'*inv(G_star*G_star')*G_star*eye(size(G_star,2))- eye(size(G_star,2)),2)>=0.05);
+            fileID = fopen(file_path,'a');
+            fprintf(fileID,'\n%1s',Problems(Idprob));            
+            % load summary results
+            load(['./Solution/Prob',num2str(Idprob),'/Summary.mat'])
+            % Go over Sigma
+            for IdSigma = 1:length(Sigma)
+                % Save MSE 
+                fileID = fopen(file_path,'a');
+                fprintf(fileID,'%12.4e %16.4e(%0.4e)', Sigma(IdSigma), ...
+                    MSE_X(IdDBeta,IdSigma,1),MSE_X(IdDBeta,IdSigma,2));
+                % Save Coverage Rate
+                Rate = mean(Cov_Id_Entry{IdDBeta,IdSigma}(IdIndex,1));
+                fileID = fopen(file_path,'a');
+                fprintf(fileID,'%18.4f(%0.4f)',Rate,sqrt(Rate*(1-Rate)));
+                % Save Radius
+                Radius_mean = mean(Radius_Entry{IdDBeta,IdSigma}(IdIndex,1));
+                diff_mean = Radius_Entry{IdDBeta,IdSigma}(IdIndex,1) - Radius_mean;
+                Radius_std = sqrt(mean(Radius_Entry{IdDBeta,IdSigma}(IdIndex,2).^2)+mean(diff_mean.^2));
+                fileID = fopen(file_path,'a');
+                fprintf(fileID,'%20.4f(%0.4f)',Radius_mean,Radius_std);
+                % Save FLOPs
+                fileID = fopen(file_path,'a');
+                fprintf(fileID,'%22.4f\r\n',Ave_Flops(IdDBeta,IdSigma,1));
+            end
+        end
+    end
+end
+
 
 
 
